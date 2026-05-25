@@ -1,6 +1,6 @@
 # ⏱ LGS Round Timer
 
-A lightweight, browser-based round timer built for local game stores (LGS). Run multiple simultaneous timers — one per table — each labeled with the game being played.
+A lightweight desktop app for local game stores (LGS) to manage multiple simultaneous round timers.
 
 ---
 
@@ -11,21 +11,21 @@ A lightweight, browser-based round timer built for local game stores (LGS). Run 
 - ⏸ **Pause & resume** — per timer or all at once
 - 🗂 **Game presets** — MTG, Pokémon, Yu-Gi-Oh!, Flesh and Blood, Lorcana, and more
 - ➕ **Custom presets** — add your own games and round lengths, saved between sessions
+- ⧉ **Pop-out windows** — pop any timer into its own resizable window, great for a second monitor or store TV
 - 📜 **Round history** — every round is logged with start time, end time, and table label
 - 📥 **Export to CSV** — download round history as a spreadsheet
 - 🌙 **Dark / light mode** — preference saved between sessions
-- 📱 **Responsive** — works on tablets too
 
 ---
 
-## For Users (No Code Required)
+## For Users — Downloading & Installing
 
 1. Go to the [**Releases**](../../releases) page
-2. Download the latest `lgs-round-timer.zip`
-3. Unzip it anywhere on your computer
-4. Open `index.html` in your browser — that's it!
+2. Download the latest **`LGS Round Timer Setup x.x.x.exe`**
+3. Run the installer — it will create a desktop shortcut and Start Menu entry
+4. Launch **LGS Round Timer** from your desktop
 
-> **Note:** Use a modern browser (Chrome, Edge, Firefox). Audio requires a user interaction before it plays — just click anything on the page first.
+> No browser, Node.js, or any other software required.
 
 ---
 
@@ -38,28 +38,30 @@ A lightweight, browser-based round timer built for local game stores (LGS). Run 
 ### Setup
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/lgs-round-timer.git
+git clone https://github.com/ph715b/lgs-round-timer.git
 cd lgs-round-timer
 npm install
 ```
 
-### Development
+### Run in development (Electron window)
+
+```bash
+npm run electron:dev
+```
+
+### Build the Windows installer
+
+```bash
+npm run electron:build
+```
+
+Output: `release/LGS Round Timer Setup x.x.x.exe`
+
+### Run in browser (dev only)
 
 ```bash
 npm run dev
-# Opens http://localhost:5173 with hot reload
-```
-
-### Build for distribution
-
-```bash
-npm run build
-# Outputs a self-contained app to dist/
-```
-
-To create a release ZIP:
-```bash
-cd dist && zip -r ../lgs-round-timer.zip .
+# Opens http://localhost:5173
 ```
 
 ---
@@ -69,17 +71,43 @@ cd dist && zip -r ../lgs-round-timer.zip .
 ```
 lgs-round-timer/
 ├── index.html              # App shell & layout
-├── vite.config.js          # Build config
+├── popout.html             # Standalone pop-out timer window
+├── vite.config.js          # Vite build config
+├── package.json            # Dependencies & scripts
+├── electron/
+│   ├── main.cjs            # Electron main process — creates windows
+│   └── preload.cjs         # Security preload script
 ├── src/
 │   ├── main.js             # Entry point — wires everything together
 │   ├── TimerCard.js        # Single timer: state, tick logic, DOM card
-│   ├── TimerManager.js     # Manages the collection of all active timers
+│   ├── TimerManager.js     # Manages all active timers
 │   ├── Presets.js          # Game presets (localStorage)
 │   ├── History.js          # Round logging & CSV export (localStorage)
-│   └── Audio.js            # Alarm sounds via Web Audio API
-└── styles/
-    └── main.css            # Full app stylesheet (light + dark theme)
+│   ├── Audio.js            # Alarm sounds via Web Audio API
+│   └── popout.js           # Logic for pop-out timer windows
+├── styles/
+│   └── main.css            # Full app stylesheet (light + dark theme)
+└── .github/
+    └── workflows/
+        └── release.yml     # Auto-builds .exe on version tag push
 ```
+
+---
+
+## Releasing a New Version
+
+1. Make your changes
+2. Bump `"version"` in `package.json` (e.g. `"1.0.1"`)
+3. Commit, tag, and push:
+
+```bash
+git add .
+git commit -m "Release v1.0.1"
+git tag v1.0.1
+git push && git push --tags
+```
+
+GitHub Actions will automatically build the installer and publish it to the Releases page.
 
 ---
 
@@ -91,47 +119,10 @@ Open `src/Presets.js` and add to the `DEFAULT_PRESETS` array:
 { id: 'mygame', name: 'My Game Name', duration: 2700 }, // 45 min
 ```
 
-Or just use the **"+ Add new preset..."** option in the app's dropdown — presets are saved automatically to localStorage.
+Or use the **✎ Manage** button in the app to add presets without touching code.
 
 ---
 
 ## License
 
 MIT — free to use, modify, and distribute.
-
----
-
-## Building the Desktop App (.exe)
-
-The app can be packaged as a Windows installer using Electron — no browser required.
-
-### Prerequisites
-- [Node.js](https://nodejs.org/) 18 or higher
-
-### Steps
-
-```bash
-# 1. Install dependencies (first time only)
-npm install
-
-# 2. Build the installer
-npm run electron:build
-```
-
-The installer will be output to `release/LGS Round Timer Setup 1.0.0.exe`.
-
-Staff can run the installer once and then launch the app from the desktop shortcut or Start Menu like any other Windows program.
-
-### Test before building
-
-To preview the app in Electron without packaging:
-
-```bash
-npm run electron:dev
-```
-
-### Releasing a new version
-
-1. Bump the `"version"` field in `package.json`
-2. Run `npm run electron:build`
-3. Upload the new `.exe` from `release/` to GitHub Releases
