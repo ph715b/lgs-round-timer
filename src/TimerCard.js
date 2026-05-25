@@ -138,7 +138,7 @@ export class TimerCard {
     this.status    = 'running';
     this.startedAt = Date.now(); // record when this run segment began
 
-    // Tick every 250ms for smooth display (even if we only update by the second)
+    // Tick every 250ms for smooth display
     this.intervalId = setInterval(() => this._tick(), 250);
 
     this._updateDisplay();

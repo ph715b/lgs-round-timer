@@ -188,9 +188,6 @@ document.addEventListener('keydown', e => {
 function renderPresetManagerList() {
   const presets = loadPresets();
 
-  // IDs that belong to the hard-coded defaults (cannot be deleted)
-  const defaultIds = ['mtg', 'pokemon', 'yugioh', 'fab', 'lorcana', 'dbs', 'swu', 'custom'];
-
   presetManagerList.innerHTML = '';
 
   if (presets.length === 0) {
@@ -199,8 +196,6 @@ function renderPresetManagerList() {
   }
 
   presets.forEach(preset => {
-    const isDefault = defaultIds.includes(preset.id);
-
     const row = document.createElement('div');
     row.className = 'preset-row';
 
@@ -212,36 +207,23 @@ function renderPresetManagerList() {
       <span class="preset-row__dur">${formatDuration(preset.duration)}</span>
     `;
 
-    // Right side: lock icon (default) OR delete button (custom)
+    // Right side: delete button for every preset
     const action = document.createElement('div');
     action.className = 'preset-row__action';
 
-    if (isDefault) {
-      // Default presets are locked — show a tooltip explaining why
-      const lock = document.createElement('span');
-      lock.className = 'preset-row__lock';
-      lock.title = 'Built-in preset — cannot be deleted';
-      lock.textContent = '🔒';
-      action.appendChild(lock);
-    } else {
-      // Custom presets can be deleted
-      const deleteBtn = document.createElement('button');
-      deleteBtn.className = 'btn btn--danger btn--sm preset-row__delete';
-      deleteBtn.textContent = '× Delete';
-      deleteBtn.title = `Delete "${preset.name}"`;
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'btn btn--danger btn--sm preset-row__delete';
+    deleteBtn.textContent = '× Delete';
+    deleteBtn.title = `Delete "${preset.name}"`;
 
-      deleteBtn.addEventListener('click', () => {
-        if (!confirm(`Delete the preset "${preset.name}"?`)) return;
+    deleteBtn.addEventListener('click', () => {
+      if (!confirm(`Delete the preset "${preset.name}"?`)) return;
+      deletePreset(preset.id);
+      renderPresetManagerList();
+      populatePresetDropdown();
+    });
 
-        deletePreset(preset.id);
-
-        // Refresh both the modal list and the sidebar dropdown
-        renderPresetManagerList();
-        populatePresetDropdown();
-      });
-
-      action.appendChild(deleteBtn);
-    }
+    action.appendChild(deleteBtn);
 
     row.append(info, action);
     presetManagerList.appendChild(row);

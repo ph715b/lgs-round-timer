@@ -87,12 +87,6 @@ body {
   transition: background var(--transition), color var(--transition);
 }
 
-/* Explicit background on the layout shell so the body colour always shows */
-.app-layout {
-  background: var(--bg-app);
-  transition: background var(--transition);
-}
-
 /* ── Typography ──────────────────────────────────────────── */
 h1, h2, h3 {
   font-family: 'Rajdhani', sans-serif;
@@ -143,6 +137,8 @@ h1, h2, h3 {
   display: grid;
   grid-template-columns: 280px 1fr;
   min-height: calc(100vh - 60px);
+  background: var(--bg-app);
+  transition: background var(--transition);
 }
 
 /* ── Sidebar ─────────────────────────────────────────────── */
@@ -683,13 +679,6 @@ h1, h2, h3 {
 .preset-row__action {
   display: flex;
   align-items: center;
-}
-
-/* The lock icon for built-in presets */
-.preset-row__lock {
-  font-size: 0.85rem;
-  opacity: 0.45;
-  cursor: default;
 }
 
 /* Delete button — override sidebar btn colors for the light modal context */

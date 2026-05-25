@@ -43,6 +43,11 @@ function createMainWindow() {
   // Load the built app from disk (file:// protocol)
   win.loadFile(path.join(__dirname, '../dist/index.html'));
 
+  // Press F12 to open DevTools
+win.webContents.on('before-input-event', (event, input) => {
+  if (input.key === 'F12') win.webContents.openDevTools();
+});
+
   // ── Pop-out window handler ──────────────────────────────────
   // When the renderer calls window.open() (the ⧉ button),
   // Electron intercepts it here and opens a real desktop window
