@@ -4,7 +4,7 @@
 // and the DOM card it renders into.
 // ============================================================
 
-import { playRoundEndAlarm, playWarningBeep } from './Audio.js';
+import { playRoundEndAlarm, playWarningBeep, stopAlarm } from './Audio.js';
 import { logRound } from './History.js';
 
 // How many seconds before zero we show the low-time warning
@@ -22,14 +22,16 @@ export class TimerCard {
    * @param {number}   options.totalSeconds  - Round duration in seconds
    * @param {Function} options.onRemove      - Callback when the card is removed
    */
-  constructor({ id, game, label, totalSeconds, onRemove }) {
+  constructor({ id, game, label, totalSeconds, image, onRemove }) {
     // ── State ──────────────────────────────────────────────
     this.id               = id;
     this.game             = game;
     this.label            = label;
+    this.image            = image || null; // base64 data URL for the event logo
     this.totalSeconds     = totalSeconds;
     this.remainingSeconds = totalSeconds;
-    this.status           = 'idle';  // 'idle' | 'running' | 'paused' | 'expired'
+    this.overtimeSeconds  = 0;       // counts UP after time hits zero
+    this.status           = 'idle';  // 'idle' | 'running' | 'paused' | 'expired' | 'overtime'
     this.startedAt        = null;    // timestamp (ms) when the timer last started/resumed
     this.accumulatedMs    = 0;       // ms already elapsed before current run segment
     this.intervalId       = null;    // setInterval handle
@@ -56,13 +58,25 @@ export class TimerCard {
     const header = document.createElement('div');
     header.className = 'timer-card__header';
 
-    this.gameEl  = document.createElement('span');
+    // ── Event logo (optional) ─────────────────────────────
+    this.imageEl = document.createElement('img');
+    this.imageEl.className = 'timer-card__image';
+    this.imageEl.alt = '';
+    if (this.image) {
+      this.imageEl.src = this.image;
+    } else {
+      this.imageEl.hidden = true;
+    }
+
+    this.gameEl = document.createElement('span');
     this.gameEl.className = 'timer-card__game';
     this.gameEl.textContent = this.game;
 
     this.labelEl = document.createElement('span');
     this.labelEl.className = 'timer-card__label';
     this.labelEl.textContent = this.label || '';
+    // Show full name on hover in case it's been truncated
+    if (this.label) this.labelEl.title = this.label;
 
     const removeBtn = document.createElement('button');
     removeBtn.className = 'timer-card__remove';
@@ -70,14 +84,25 @@ export class TimerCard {
     removeBtn.innerHTML = '&times;';
     removeBtn.addEventListener('click', () => this._handleRemove());
 
-    header.append(this.gameEl, this.labelEl, removeBtn);
+    // ── Pop-out button — lives in the header corner next to remove ──
+    this.popoutBtn = document.createElement('button');
+    this.popoutBtn.className = 'timer-card__popout';
+    this.popoutBtn.title = 'Pop out into its own window';
+    this.popoutBtn.textContent = '⧉';
+    this.popoutBtn.addEventListener('click', () => {
+      if (typeof window.__lgsOpenPopout === 'function') {
+        window.__lgsOpenPopout(this.id);
+      }
+    });
+
+    header.append(this.imageEl, this.gameEl, this.labelEl, this.popoutBtn, removeBtn);
 
     // ── Time display ──────────────────────────────────────
     this.timeDisplay = document.createElement('div');
     this.timeDisplay.className = 'timer-card__time';
     this.timeDisplay.textContent = this._formatTime(this.remainingSeconds);
 
-    // Progress bar (shrinks as time runs out)
+    // Progress bar (shrinks as time runs out, stays empty in overtime)
     this.progressBar = document.createElement('div');
     this.progressBar.className = 'timer-card__progress';
     const progressFill = document.createElement('div');
@@ -104,62 +129,69 @@ export class TimerCard {
     this.resetBtn.textContent = 'Reset';
     this.resetBtn.addEventListener('click', () => this._handleReset());
 
-    // ── Pop-out button ────────────────────────────────────
-    // Opens this timer in its own resizable window via BroadcastChannel.
-    // window.__lgsOpenPopout is registered by main.js after the
-    // BroadcastChannel publisher is set up.
-    this.popoutBtn = document.createElement('button');
-    this.popoutBtn.className = 'btn btn--ghost btn--popout';
-    this.popoutBtn.title = 'Pop out into its own window';
-    this.popoutBtn.textContent = '⧉';
-    this.popoutBtn.addEventListener('click', () => {
-      if (typeof window.__lgsOpenPopout === 'function') {
-        window.__lgsOpenPopout(this.id);
-      }
+    controls.append(this.startPauseBtn, this.resetBtn);
+
+    // ── Time adjustment buttons ───────────────────────────
+    // Four quick-tap buttons: -5, -1, +1, +5 minutes.
+    // Works in any state except idle (no point adjusting a timer that hasn't started).
+    const timeAdj = document.createElement('div');
+    timeAdj.className = 'timer-card__time-adj';
+
+    const adjBtns = [
+      { label: '−5m', delta: -300 },
+      { label: '−1m', delta:  -60 },
+      { label: '+1m', delta:   60 },
+      { label: '+5m', delta:  300 },
+    ];
+
+    adjBtns.forEach(({ label, delta }) => {
+      const btn = document.createElement('button');
+      btn.className = `btn--adj ${delta < 0 ? 'btn--adj-minus' : 'btn--adj-plus'}`;
+      btn.textContent = label;
+      btn.title = delta > 0
+        ? `Add ${Math.abs(delta / 60)} minute${Math.abs(delta) > 60 ? 's' : ''}`
+        : `Subtract ${Math.abs(delta / 60)} minute${Math.abs(delta) > 60 ? 's' : ''}`;
+      btn.addEventListener('click', () => this._adjustTime(delta));
+      timeAdj.appendChild(btn);
     });
 
-    controls.append(this.startPauseBtn, this.resetBtn, this.popoutBtn);
-
     // ── Assemble card ─────────────────────────────────────
-    card.append(header, this.timeDisplay, this.progressBar, this.statusBadge, controls);
+    card.append(header, this.timeDisplay, this.progressBar, this.statusBadge, controls, timeAdj);
     return card;
   }
 
   // ── Timer Logic ──────────────────────────────────────────
 
-  /**
-   * Starts or resumes the timer.
-   * We track real wall-clock time so the timer stays accurate
-   * even if the tab is backgrounded or the interval fires late.
-   */
+  /** Starts or resumes the timer. */
   start() {
-    if (this.status === 'running' || this.status === 'expired') return;
+    if (this.status === 'running' || this.status === 'overtime') return;
 
-    this.status    = 'running';
-    this.startedAt = Date.now(); // record when this run segment began
+    // Re-entering from paused-during-overtime
+    if (this.status === 'paused' && this.remainingSeconds <= 0) {
+      this.status    = 'overtime';
+    } else {
+      this.status    = 'running';
+    }
 
-    // Tick every 250ms for smooth display
+    this.startedAt = Date.now();
     this.intervalId = setInterval(() => this._tick(), 250);
-
     this._updateDisplay();
   }
 
-  /** Pauses the timer and accumulates elapsed time. */
+  /** Pauses the timer — works in both running and overtime states. */
   pause() {
-    if (this.status !== 'running') return;
+    if (this.status !== 'running' && this.status !== 'overtime') return;
 
     clearInterval(this.intervalId);
     this.intervalId = null;
-
-    // Save how much time has elapsed in this run segment
     this.accumulatedMs += Date.now() - this.startedAt;
     this.startedAt = null;
     this.status = 'paused';
-
+    stopAlarm(); // silence any playing alarm when paused
     this._updateDisplay();
   }
 
-  /** Resets the timer back to full duration in idle state. */
+  /** Resets the timer fully back to idle. */
   reset() {
     clearInterval(this.intervalId);
     this.intervalId       = null;
@@ -167,49 +199,69 @@ export class TimerCard {
     this.startedAt        = null;
     this.accumulatedMs    = 0;
     this.remainingSeconds = this.totalSeconds;
+    this.overtimeSeconds  = 0;
     this.hasWarnedBeep    = false;
+    stopAlarm(); // silence any playing alarm on reset
+    this._updateDisplay();
+  }
+
+  /**
+   * Internal tick — called every 250ms.
+   * Handles both the countdown phase and the overtime count-up phase.
+   */
+  _tick() {
+    if (this.status !== 'running' && this.status !== 'overtime') return;
+
+    const elapsedMs      = this.accumulatedMs + (Date.now() - this.startedAt);
+    const elapsedSeconds = elapsedMs / 1000;
+
+    if (this.status === 'running') {
+      // ── Countdown phase ───────────────────────────────
+      this.remainingSeconds = Math.max(0, this.totalSeconds - elapsedSeconds);
+
+      // Warning beep at 1 minute remaining
+      if (!this.hasWarnedBeep && this.remainingSeconds <= WARNING_BEEP_THRESHOLD) {
+        playWarningBeep();
+        this.hasWarnedBeep = true;
+      }
+
+      // Time just hit zero — switch to overtime
+      if (this.remainingSeconds <= 0) {
+        this._startOvertime();
+        return;
+      }
+
+    } else if (this.status === 'overtime') {
+      // ── Overtime phase — count upward from zero ────────
+      // elapsedMs includes all time since the last start/resume,
+      // so we subtract the original round duration to get pure overtime
+      this.overtimeSeconds = Math.max(0, elapsedSeconds - this.totalSeconds);
+    }
 
     this._updateDisplay();
   }
 
   /**
-   * Internal tick — called every 250ms while running.
-   * Calculates remaining time from real elapsed time.
+   * Called the moment the countdown hits zero.
+   * Plays the alarm, logs the round, and switches to overtime mode.
+   * The interval keeps running — now ticking overtimeSeconds upward.
    */
-  _tick() {
-    if (this.status !== 'running') return;
-
-    // Total elapsed = already accumulated + current run segment
-    const elapsedMs      = this.accumulatedMs + (Date.now() - this.startedAt);
-    const elapsedSeconds = elapsedMs / 1000;
-
-    this.remainingSeconds = Math.max(0, this.totalSeconds - elapsedSeconds);
-
-    // ── Warning beep at 1 minute remaining ────────────────
-    if (!this.hasWarnedBeep && this.remainingSeconds <= WARNING_BEEP_THRESHOLD) {
-      playWarningBeep();
-      this.hasWarnedBeep = true;
-    }
-
-    // ── Timer expired ─────────────────────────────────────
-    if (this.remainingSeconds <= 0) {
-      this._expire();
-      return;
-    }
-
-    this._updateDisplay();
-  }
-
-  /** Called when the timer runs out. Plays alarm, logs round. */
-  _expire() {
-    clearInterval(this.intervalId);
-    this.intervalId       = null;
-    this.status           = 'expired';
+  _startOvertime() {
     this.remainingSeconds = 0;
+    this.overtimeSeconds  = 0;
+    this.status           = 'overtime';
 
-    // Log to history before updating display
+    // Reset the time baseline so the tick starts overtime at +00:00 immediately,
+    // regardless of whether we got here naturally or via a subtraction adjustment.
+    // Without this, accumulatedMs may reflect a time less than totalSeconds,
+    // causing the tick to calculate negative overtime (stuck at 0) until real
+    // time catches up.
+    if (this.intervalId) {
+      this.accumulatedMs = this.totalSeconds * 1000;
+      this.startedAt     = Date.now();
+    }
+
     logRound(this, 'expired');
-
     playRoundEndAlarm();
     this._updateDisplay();
   }
@@ -217,77 +269,130 @@ export class TimerCard {
   // ── Event Handlers ───────────────────────────────────────
 
   _handleStartPause() {
-    if (this.status === 'running') {
+    if (this.status === 'running' || this.status === 'overtime') {
       this.pause();
     } else if (this.status === 'idle' || this.status === 'paused') {
       this.start();
     }
-    // expired timers ignore this button (user must reset first)
   }
 
   _handleReset() {
-    // If timer was running or paused, log it as manually stopped
-    if (this.status === 'running' || this.status === 'paused') {
-      logRound(this, 'stopped');
+    if (this.status === 'running' || this.status === 'paused' || this.status === 'overtime') {
+      // Only log as stopped if we haven't already logged it (overtime already logs at expiry)
+      if (this.status !== 'overtime') {
+        logRound(this, 'stopped');
+      }
     }
     this.reset();
   }
 
   _handleRemove() {
-    // Clean up the interval if running
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-    }
-    // Log if it was active
+    if (this.intervalId) clearInterval(this.intervalId);
     if (this.status === 'running' || this.status === 'paused') {
       logRound(this, 'stopped');
     }
-    // Remove DOM element
     this.element.remove();
-    // Notify TimerManager
     if (this.onRemove) this.onRemove(this.id);
+  }
+
+  /**
+   * Adjusts the remaining time by delta seconds.
+   * Works while running, paused, or in overtime.
+   * - Positive delta: adds time (can pull back out of overtime)
+   * - Negative delta: subtracts time (floors at 0, entering overtime if running)
+   * @param {number} delta - seconds to add (positive) or subtract (negative)
+   */
+  _adjustTime(delta) {
+    // Don't adjust idle timers — nothing is running yet
+    if (this.status === 'idle') return;
+
+    if (this.status === 'overtime') {
+      // In overtime, adding time reduces overtimeSeconds first,
+      // then restores remaining time if we go past zero
+      const newOvertime = this.overtimeSeconds - delta;
+      if (newOvertime <= 0) {
+        // Adding enough time to come back out of overtime
+        this.remainingSeconds = Math.abs(newOvertime);
+        this.overtimeSeconds  = 0;
+        this.status           = this.intervalId ? 'running' : 'paused';
+        // Reset the accumulated time baseline so the tick stays accurate
+        if (this.intervalId) {
+          this.accumulatedMs = this.totalSeconds * 1000 - this.remainingSeconds * 1000;
+          this.startedAt     = Date.now();
+        }
+      } else {
+        this.overtimeSeconds = newOvertime;
+        // Adjust accumulatedMs so the tick stays accurate.
+        // To increase overtime (negative delta) we need MORE elapsed time → subtract delta.
+        // To decrease overtime (positive delta) we need LESS elapsed time → subtract delta.
+        // Either way: accumulatedMs -= delta * 1000
+        if (this.intervalId) {
+          this.accumulatedMs -= delta * 1000;
+          this.startedAt = Date.now();
+        }
+      }
+    } else {
+      // Normal countdown — clamp so we can't go below 0
+      const newRemaining = this.remainingSeconds + delta;
+      if (newRemaining <= 0 && this.status === 'running') {
+        // Subtracting pushed us into overtime mid-run
+        this._startOvertime();
+        return;
+      }
+      this.remainingSeconds = Math.max(0, newRemaining);
+
+      // Shift accumulatedMs so the tick recalculates correctly from the new remaining time.
+      // We do NOT change totalSeconds — that's the original round length and must stay fixed.
+      if (this.intervalId) {
+        this.accumulatedMs -= delta * 1000;
+        this.startedAt      = Date.now();
+      }
+    }
+
+    this._updateDisplay();
   }
 
   // ── Display Updates ──────────────────────────────────────
 
-  /**
-   * Syncs all visual elements to current state.
-   * Called after every state change.
-   */
+  /** Syncs all visual elements to current state. */
   _updateDisplay() {
-    // ── Time text ──────────────────────────────────────────
-    this.timeDisplay.textContent = this._formatTime(this.remainingSeconds);
+    // ── Time display ──────────────────────────────────────
+    if (this.status === 'overtime') {
+      // Show +MM:SS counting upward in overtime
+      this.timeDisplay.textContent = `+${this._formatTime(this.overtimeSeconds)}`;
+    } else {
+      this.timeDisplay.textContent = this._formatTime(this.remainingSeconds);
+    }
 
-    // ── Progress bar fill ─────────────────────────────────
-    const pct = (this.remainingSeconds / this.totalSeconds) * 100;
+    // ── Progress bar ──────────────────────────────────────
+    // Stays at 0% during overtime (round is over)
+    const pct = this.status === 'overtime'
+      ? 0
+      : (this.remainingSeconds / this.totalSeconds) * 100;
     this.progressFill.style.width = `${pct}%`;
 
-    // ── Card color state ──────────────────────────────────
+    // ── Card status classes ───────────────────────────────
     this.element.dataset.status = this.status;
 
-    // Low-time warning class (red tint) when under threshold
     const isWarning = this.remainingSeconds <= WARNING_THRESHOLD_SECONDS
       && this.remainingSeconds > 0
       && this.status === 'running';
-    this.element.classList.toggle('timer-card--warning', isWarning);
-    this.element.classList.toggle('timer-card--expired', this.status === 'expired');
+    this.element.classList.toggle('timer-card--warning',  isWarning);
+    this.element.classList.toggle('timer-card--overtime', this.status === 'overtime');
 
-    // ── Status badge text ──────────────────────────────────
+    // ── Status badge ──────────────────────────────────────
     const statusText = {
-      idle:    'Ready',
-      running: 'In Progress',
-      paused:  'Paused',
-      expired: 'Time\'s Up!',
+      idle:     'Ready',
+      running:  'In Progress',
+      paused:   'Paused',
+      overtime: 'Overtime',
     };
     this.statusBadge.textContent = statusText[this.status] ?? '';
 
-    // ── Start/Pause button label ───────────────────────────
-    if (this.status === 'running') {
+    // ── Start/Pause button ────────────────────────────────
+    if (this.status === 'running' || this.status === 'overtime') {
       this.startPauseBtn.textContent = 'Pause';
       this.startPauseBtn.disabled = false;
-    } else if (this.status === 'expired') {
-      this.startPauseBtn.textContent = 'Expired';
-      this.startPauseBtn.disabled = true;
     } else {
       this.startPauseBtn.textContent = this.status === 'paused' ? 'Resume' : 'Start';
       this.startPauseBtn.disabled = false;
@@ -297,13 +402,11 @@ export class TimerCard {
   // ── Helpers ──────────────────────────────────────────────
 
   /**
-   * Converts a raw seconds value into MM:SS display string.
+   * Formats seconds into MM:SS.
    * e.g. 3000 → "50:00" | 65 → "01:05"
-   * @param {number} totalSecs
-   * @returns {string}
    */
   _formatTime(totalSecs) {
-    const secs = Math.ceil(totalSecs); // ceil so we don't show 0 a tick early
+    const secs = Math.ceil(Math.abs(totalSecs));
     const m    = Math.floor(secs / 60).toString().padStart(2, '0');
     const s    = (secs % 60).toString().padStart(2, '0');
     return `${m}:${s}`;

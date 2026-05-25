@@ -1,14 +1,14 @@
 // ============================================================
 // Audio.js
-// Handles all alarm sounds using the Web Audio API.
-// No external files or libraries needed — pure browser audio.
+// Handles all alarm sounds. Plays a custom uploaded sound if
+// one has been saved, otherwise falls back to generated tones
+// via the Web Audio API (no external files needed).
 // ============================================================
 
-/**
- * Creates and returns a shared AudioContext.
- * We reuse one context across all sounds to avoid hitting browser limits.
- */
+const STORAGE_KEY = 'lgs-alarm-sound'; // localStorage key for base64 audio
+
 let _audioCtx = null;
+
 function getAudioContext() {
   if (!_audioCtx) {
     _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -16,47 +16,134 @@ function getAudioContext() {
   return _audioCtx;
 }
 
+// ── Custom sound ──────────────────────────────────────────────
+
 /**
- * Plays a simple beep tone.
- * @param {number} frequency - Hz of the tone (default 880 = high A)
- * @param {number} duration  - How long in seconds (default 1.5s)
- * @param {string} type      - Oscillator wave type: 'sine' | 'square' | 'triangle' | 'sawtooth'
+ * Saves a custom alarm sound to localStorage as a base64 data URL.
+ * @param {File} file - Audio file selected by the user
+ * @returns {Promise<string>} The file's display name
+ */
+export function saveCustomAlarm(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        // Store both the data URL and the original filename
+        const payload = JSON.stringify({
+          name:    file.name,
+          dataUrl: reader.result,
+        });
+        localStorage.setItem(STORAGE_KEY, payload);
+        resolve(file.name);
+      } catch (err) {
+        // localStorage can reject if the file is too large (~5MB limit)
+        reject(new Error('File too large — please use a shorter audio clip.'));
+      }
+    };
+    reader.onerror = () => reject(new Error('Could not read audio file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Returns the saved custom alarm info, or null if none is saved.
+ * @returns {{ name: string, dataUrl: string } | null}
+ */
+export function getCustomAlarm() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Removes the custom alarm sound, reverting to the default beep.
+ */
+export function clearCustomAlarm() {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+/**
+ * Plays the custom alarm sound if one is saved.
+ * @returns {boolean} true if a custom sound was played, false if not available
+ */
+// Holds the currently playing alarm Audio instance so it can be stopped
+let _activeAlarm = null;
+
+function playCustomSound() {
+  const alarm = getCustomAlarm();
+  if (!alarm) return false;
+
+  try {
+    _activeAlarm = new Audio(alarm.dataUrl);
+    _activeAlarm.play().catch(err => {
+      console.warn('[Audio] Custom sound playback failed:', err);
+    });
+    // Clear reference when it finishes naturally
+    _activeAlarm.addEventListener('ended', () => { _activeAlarm = null; });
+    return true;
+  } catch (err) {
+    console.warn('[Audio] Could not play custom sound:', err);
+    return false;
+  }
+}
+
+/**
+ * Stops the alarm if it is currently playing.
+ * Call this on pause, reset, or any user action that should silence the alarm.
+ */
+export function stopAlarm() {
+  if (_activeAlarm) {
+    _activeAlarm.pause();
+    _activeAlarm.currentTime = 0;
+    _activeAlarm = null;
+  }
+  // For generated tones we can't stop them mid-play (Web Audio API limitation)
+  // but they are very short so this is not a real problem in practice.
+}
+
+// ── Generated tones (fallback) ────────────────────────────────
+
+/**
+ * Plays a simple generated beep tone.
+ * @param {number} frequency - Hz (default 880)
+ * @param {number} duration  - seconds (default 1.5)
+ * @param {string} type      - oscillator wave type
  */
 export function playBeep(frequency = 880, duration = 1.5, type = 'sine') {
   try {
-    const ctx = getAudioContext();
+    const ctx  = getAudioContext();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
 
-    // Oscillator generates the actual tone
-    const osc = ctx.createOscillator();
     osc.type = type;
     osc.frequency.value = frequency;
-
-    // GainNode lets us fade the volume out smoothly instead of a harsh cut
-    const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.8, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
 
-    // Wire: oscillator → gain → speakers
     osc.connect(gain);
     gain.connect(ctx.destination);
-
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + duration);
   } catch (err) {
-    // Audio can fail silently (e.g. browser autoplay policy) — just log it
     console.warn('[Audio] Could not play beep:', err);
   }
 }
 
 /**
- * Plays the "round over" alarm — three descending tones.
- * Called when a timer hits 00:00.
+ * Plays the round-end alarm.
+ * Uses the custom sound if one is uploaded, otherwise plays three
+ * descending tones generated by the Web Audio API.
  */
 export function playRoundEndAlarm() {
-  try {
-    const ctx = getAudioContext();
+  // Try custom sound first
+  if (playCustomSound()) return;
 
-    // Three beeps: high → mid → low, spaced 0.4s apart
+  // Fall back to generated three-tone alarm
+  try {
+    const ctx   = getAudioContext();
     const tones = [
       { freq: 880, start: 0.0 },
       { freq: 660, start: 0.4 },
@@ -64,19 +151,16 @@ export function playRoundEndAlarm() {
     ];
 
     tones.forEach(({ freq, start }) => {
-      const osc = ctx.createOscillator();
+      const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
 
       osc.type = 'sine';
       osc.frequency.value = freq;
-
-      // Each tone fades out over 0.3 seconds
       gain.gain.setValueAtTime(0.9, ctx.currentTime + start);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + 0.3);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
-
       osc.start(ctx.currentTime + start);
       osc.stop(ctx.currentTime + start + 0.35);
     });
@@ -86,8 +170,8 @@ export function playRoundEndAlarm() {
 }
 
 /**
- * Plays a short "warning" tick — a softer single beep.
- * Used when a timer hits the low-time warning threshold.
+ * Plays a short warning beep at 1 minute remaining.
+ * Always uses the generated tone regardless of custom sound setting.
  */
 export function playWarningBeep() {
   playBeep(660, 0.3, 'triangle');

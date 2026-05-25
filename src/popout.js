@@ -20,6 +20,8 @@ const poGame   = document.getElementById('po-game');
 const poTime   = document.getElementById('po-time');
 const poFill   = document.getElementById('po-fill');
 const poStatus = document.getElementById('po-status');
+const poImage  = document.getElementById('po-image');
+const poWrap   = document.getElementById('popout-wrap');
 
 // ── BroadcastChannel ─────────────────────────────────────────
 // Must use the same channel name as the main window ('lgs-timers')
@@ -27,10 +29,10 @@ const channel = new BroadcastChannel('lgs-timers');
 
 // Status label map (same as main app)
 const STATUS_LABELS = {
-  idle:    'Ready',
-  running: 'In Progress',
-  paused:  'Paused',
-  expired: "Time's Up!",
+  idle:     'Ready',
+  running:  'In Progress',
+  paused:   'Paused',
+  overtime: 'Overtime',
 };
 
 /**
@@ -60,33 +62,52 @@ channel.addEventListener('message', event => {
  * @param {object} state - { id, game, label, remainingSeconds, totalSeconds, status }
  */
 function render(state) {
-  // ── Format MM:SS ──────────────────────────────────────────
-  const secs = Math.ceil(state.remainingSeconds);
-  const m    = Math.floor(secs / 60).toString().padStart(2, '0');
-  const s    = (secs % 60).toString().padStart(2, '0');
+  const isOvertime = state.status === 'overtime';
 
-  poTime.textContent   = `${m}:${s}`;
+  // ── Format time display ───────────────────────────────────
+  // In overtime show +MM:SS counting up, otherwise show remaining MM:SS
+  const rawSecs = isOvertime
+    ? Math.ceil(state.overtimeSeconds || 0)
+    : Math.ceil(state.remainingSeconds);
+  const m = Math.floor(rawSecs / 60).toString().padStart(2, '0');
+  const s = (rawSecs % 60).toString().padStart(2, '0');
+
+  poTime.textContent   = isOvertime ? `+${m}:${s}` : `${m}:${s}`;
   poLabel.textContent  = state.label || '';
   poGame.textContent   = state.game;
+
+  // ── Event logo ────────────────────────────────────────────
+  if (state.image) {
+    poImage.src    = state.image;
+    poImage.hidden = false;
+    poWrap.classList.remove('no-image');
+  } else {
+    poImage.hidden = true;
+    poImage.src    = '';
+    poWrap.classList.add('no-image');
+  }
   poStatus.textContent = STATUS_LABELS[state.status] ?? state.status;
 
-  // ── Progress bar ──────────────────────────────────────────
-  const pct = state.totalSeconds > 0
-    ? (state.remainingSeconds / state.totalSeconds) * 100
-    : 0;
+  // ── Progress bar — stays empty during overtime ────────────
+  const pct = isOvertime ? 0
+    : state.totalSeconds > 0
+      ? (state.remainingSeconds / state.totalSeconds) * 100
+      : 0;
   poFill.style.width = `${Math.max(0, pct)}%`;
 
-  // ── Status class on the wrapper drives all colour changes ─
+  // ── Status classes drive all colour changes ───────────────
   wrap.dataset.status = state.status;
 
-  // Warning: < 5 minutes and still running
   const isWarning = state.remainingSeconds <= 300
     && state.remainingSeconds > 0
     && state.status === 'running';
-  wrap.classList.toggle('warning', isWarning);
+  wrap.classList.toggle('warning',  isWarning);
+  wrap.classList.toggle('overtime', isOvertime);
 
-  // ── Update window title so it shows in the taskbar ────────
-  document.title = `${m}:${s} — ${state.game}`;
+  // ── Window title ──────────────────────────────────────────
+  document.title = isOvertime
+    ? `+${m}:${s} OT — ${state.game}`
+    : `${m}:${s} — ${state.game}`;
 }
 
 // ── Theme sync ────────────────────────────────────────────────

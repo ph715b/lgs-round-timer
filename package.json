@@ -1,7 +1,7 @@
 {
   "name": "lgs-round-timer",
   "productName": "LGS Round Timer",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Multi-table round timer for local game stores",
   "private": true,
   "type": "module",

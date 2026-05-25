@@ -31,7 +31,8 @@
   /* Status colors */
   --color-running: #2a9d5c;
   --color-paused:  #e0a020;
-  --color-expired: #d0282a;
+  --color-expired:  #d0282a;
+  --color-overtime: #ff4444;  /* bright red for overtime count-up */
   --color-idle:    #7a768a;
 
   /* Progress bar */
@@ -352,6 +353,18 @@ h1, h2, h3 {
   background: rgba(208, 40, 42, 0.05);
 }
 
+/* Overtime: brighter red, pulsing more urgently than the warning pulse */
+.timer-card--overtime {
+  background: rgba(255, 40, 40, 0.07);
+  border-top-color: var(--color-overtime) !important;
+  animation: overtime-pulse 1s infinite;
+}
+
+@keyframes overtime-pulse {
+  0%, 100% { box-shadow: var(--shadow-card); }
+  50%       { box-shadow: 0 0 0 4px rgba(255, 40, 40, 0.35), var(--shadow-card); }
+}
+
 /* ── Card Header ─────────────────────────────────────────── */
 .timer-card__header {
   display: flex;
@@ -362,7 +375,7 @@ h1, h2, h3 {
 .timer-card__game {
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 1.25rem;
   letter-spacing: 0.04em;
   flex: 1;
   color: var(--text-primary);
@@ -372,13 +385,18 @@ h1, h2, h3 {
 }
 
 .timer-card__label {
-  font-size: 0.75rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--text-secondary);
   background: var(--bg-app);
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 20px;
+  /* Truncate long names so buttons are never pushed out of the card */
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+  cursor: default;
 }
 
 .timer-card__remove {
@@ -393,6 +411,20 @@ h1, h2, h3 {
   transition: color var(--transition), background var(--transition);
 }
 .timer-card__remove:hover { color: var(--color-expired); background: rgba(208,40,42,0.1); }
+
+/* Pop-out button — identical style to remove button so they look like a pair */
+.timer-card__popout {
+  background: none;
+  border: none;
+  color: var(--text-hint);
+  font-size: 1.2rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+  border-radius: 4px;
+  transition: color var(--transition), background var(--transition);
+}
+.timer-card__popout:hover { color: var(--accent); background: var(--accent-glow); }
 
 /* ── Time Display ────────────────────────────────────────── */
 .timer-card__time {
@@ -412,6 +444,7 @@ h1, h2, h3 {
 .timer-card[data-status="paused"]  .timer-card__time { color: var(--color-paused); }
 .timer-card[data-status="expired"] .timer-card__time { color: var(--color-expired); }
 .timer-card--warning .timer-card__time               { color: var(--color-expired); }
+.timer-card--overtime .timer-card__time              { color: var(--color-overtime); }
 
 /* ── Progress Bar ────────────────────────────────────────── */
 .timer-card__progress {
@@ -431,6 +464,7 @@ h1, h2, h3 {
 .timer-card[data-status="running"] .timer-card__progress-fill { background: var(--color-running); }
 .timer-card[data-status="paused"]  .timer-card__progress-fill { background: var(--color-paused); }
 .timer-card--warning .timer-card__progress-fill               { background: var(--color-expired); }
+.timer-card--overtime .timer-card__progress-fill              { background: var(--color-overtime); }
 
 /* ── Status Badge ────────────────────────────────────────── */
 .timer-card__status {
@@ -446,6 +480,7 @@ h1, h2, h3 {
 .timer-card[data-status="paused"]  .timer-card__status { color: var(--color-paused); }
 .timer-card[data-status="expired"] .timer-card__status { color: var(--color-expired); }
 .timer-card--warning .timer-card__status               { color: var(--color-expired); }
+.timer-card--overtime .timer-card__status              { color: var(--color-overtime); }
 
 /* ── Card Controls ───────────────────────────────────────── */
 .timer-card__controls {
@@ -749,4 +784,125 @@ h1, h2, h3 {
   0%, 100% { transform: translateX(0); }
   25%       { transform: translateX(-4px); }
   75%       { transform: translateX(4px); }
+}
+
+/* ── Time Adjustment Buttons ─────────────────────────────────
+   These sit below the Start/Reset controls on each timer card.
+   We scope them under .timer-card to beat any generic overrides.
+────────────────────────────────────────────────────────────── */
+.timer-card__time-adj {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 5px;
+  border-top: 1px solid var(--border-card);
+  padding-top: 10px;
+  margin-top: 2px;
+}
+
+/* Shared base styles */
+.timer-card .btn--adj-minus,
+.timer-card .btn--adj-plus {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 7px 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: 'Rajdhani', sans-serif;
+  letter-spacing: 0.04em;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition), box-shadow var(--transition), transform 80ms;
+}
+
+.timer-card .btn--adj-minus:active,
+.timer-card .btn--adj-plus:active { transform: scale(0.94); }
+
+/* Subtract — blue */
+.timer-card .btn--adj-minus {
+  background: rgba(70, 130, 220, 0.15);
+  color: #5080d0;
+}
+.timer-card .btn--adj-minus:hover {
+  background: rgba(70, 130, 220, 0.28);
+  box-shadow: 0 2px 6px rgba(70, 130, 220, 0.2);
+}
+
+/* Add — green */
+.timer-card .btn--adj-plus {
+  background: rgba(42, 157, 92, 0.15);
+  color: #228a50;
+}
+.timer-card .btn--adj-plus:hover {
+  background: rgba(42, 157, 92, 0.28);
+  box-shadow: 0 2px 6px rgba(42, 157, 92, 0.2);
+}
+
+/* Dark mode — brighter text so colours pop on dark cards */
+body.theme-dark .timer-card .btn--adj-minus { color: #6090e0; }
+body.theme-dark .timer-card .btn--adj-plus  { color: var(--color-running); }
+
+/* ── Alarm Sound Section ─────────────────────────────────────── */
+.alarm-sound-name {
+  font-size: 0.8rem;
+  color: var(--accent-dim);
+  background: rgba(255,255,255,0.06);
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.alarm-sound-controls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ── Timer Card Event Logo ───────────────────────────────────── */
+.timer-card__image {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Image Upload Form Controls ──────────────────────────────── */
+.image-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.image-upload-name {
+  font-size: 0.75rem;
+  color: var(--text-hint);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Small preview thumbnail shown after selecting an image */
+.image-preview {
+  margin-top: 8px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.1);
+  max-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.2);
+}
+
+.image-preview img {
+  max-width: 100%;
+  max-height: 100px;
+  object-fit: contain;
 }

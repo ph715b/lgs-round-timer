@@ -5,6 +5,7 @@
 // ============================================================
 
 import { TimerManager } from './TimerManager.js';
+import { saveCustomAlarm, getCustomAlarm, clearCustomAlarm, playRoundEndAlarm } from './Audio.js';
 import { loadPresets, addPreset, deletePreset, formatDuration } from './Presets.js';
 import { loadHistory, clearHistory, exportHistoryAsCSV, formatTime } from './History.js';
 
@@ -25,6 +26,24 @@ const clearHistoryBtn    = document.getElementById('clear-history-btn');
 const exportCsvBtn       = document.getElementById('export-csv-btn');
 const timerCountEl       = document.getElementById('timer-count');
 const themeToggle        = document.getElementById('theme-toggle');
+
+// Timer image upload
+const timerImageInput   = document.getElementById('timer-image-input');
+const timerImageBtn     = document.getElementById('timer-image-btn');
+const timerImageName    = document.getElementById('timer-image-name');
+const timerImageClear   = document.getElementById('timer-image-clear');
+const timerImagePreview = document.getElementById('timer-image-preview');
+const timerImagePreviewImg = document.getElementById('timer-image-preview-img');
+
+// Holds the base64 data URL of the selected image, or null
+let _pendingTimerImage = null;
+
+// Alarm sound
+const alarmSoundName  = document.getElementById('alarm-sound-name');
+const alarmFileInput  = document.getElementById('alarm-file-input');
+const alarmUploadBtn  = document.getElementById('alarm-upload-btn');
+const alarmTestBtn    = document.getElementById('alarm-test-btn');
+const alarmClearBtn   = document.getElementById('alarm-clear-btn');
 
 // Manage Presets modal
 const managePresetsBtn   = document.getElementById('manage-presets-btn');
@@ -48,6 +67,9 @@ renderHistory();
 
 // Restore saved theme preference
 applySavedTheme();
+
+// Restore saved alarm sound label
+initAlarmSound();
 
 // ── Preset Dropdown ───────────────────────────────────────────────────────────
 
@@ -122,10 +144,15 @@ addTimerBtn.addEventListener('click', () => {
 
   const label = tableLabelInput.value.trim();
 
-  manager.addTimer(game, label, Math.round(durationMinutes * 60));
+  manager.addTimer(game, label, Math.round(durationMinutes * 60), _pendingTimerImage);
 
-  // Clear label input for the next timer
-  tableLabelInput.value = '';
+  // Clear inputs for the next timer
+  tableLabelInput.value      = '';
+  _pendingTimerImage         = null;
+  timerImageName.textContent = 'No image';
+  timerImageClear.hidden     = true;
+  timerImagePreview.hidden   = true;
+  timerImagePreviewImg.src   = '';
 
   updateUI();
 });
@@ -133,6 +160,34 @@ addTimerBtn.addEventListener('click', () => {
 // Also allow pressing Enter in the label field to add a timer
 tableLabelInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') addTimerBtn.click();
+});
+
+// ── Timer Image Upload ────────────────────────────────────────────────────────
+
+timerImageBtn.addEventListener('click', () => timerImageInput.click());
+
+timerImageInput.addEventListener('change', () => {
+  const file = timerImageInput.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    _pendingTimerImage       = reader.result;
+    timerImageName.textContent = file.name;
+    timerImageClear.hidden   = false;
+    timerImagePreviewImg.src = _pendingTimerImage;
+    timerImagePreview.hidden = false;
+  };
+  reader.readAsDataURL(file);
+  timerImageInput.value = ''; // allow re-selecting same file
+});
+
+timerImageClear.addEventListener('click', () => {
+  _pendingTimerImage         = null;
+  timerImageName.textContent = 'No image';
+  timerImageClear.hidden     = true;
+  timerImagePreview.hidden   = true;
+  timerImagePreviewImg.src   = '';
 });
 
 // ── Global Controls ───────────────────────────────────────────────────────────
@@ -331,6 +386,76 @@ setInterval(() => {
   }
 }, 5000);
 
+// ── Alarm Sound ──────────────────────────────────────────────────────────────
+
+/** Updates the alarm UI to reflect the currently saved sound. */
+function initAlarmSound() {
+  const alarm = getCustomAlarm();
+  if (alarm) {
+    alarmSoundName.textContent = alarm.name;
+    alarmClearBtn.hidden = false;
+  } else {
+    alarmSoundName.textContent = 'Default beep';
+    alarmClearBtn.hidden = true;
+  }
+}
+
+// Clicking "Upload sound" opens the hidden file picker
+alarmUploadBtn.addEventListener('click', () => alarmFileInput.click());
+
+// When a file is selected, save it and update the UI
+alarmFileInput.addEventListener('change', async () => {
+  const file = alarmFileInput.files[0];
+  if (!file) return;
+
+  try {
+    const name = await saveCustomAlarm(file);
+    alarmSoundName.textContent = name;
+    alarmClearBtn.hidden = false;
+    // Reset the input so the same file can be re-selected if needed
+    alarmFileInput.value = '';
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+// Test button toggles between playing and stopping the alarm
+let _testAudio = null;
+
+alarmTestBtn.addEventListener('click', () => {
+  // If something is already playing, stop it
+  if (_testAudio) {
+    _testAudio.pause();
+    _testAudio.currentTime = 0;
+    _testAudio = null;
+    alarmTestBtn.textContent = '▶ Test';
+    return;
+  }
+
+  const alarm = getCustomAlarm();
+  if (alarm) {
+    // Custom sound — track the Audio object so we can stop it
+    _testAudio = new Audio(alarm.dataUrl);
+    alarmTestBtn.textContent = '⏹ Stop';
+    _testAudio.play().catch(err => console.warn('[Audio] Test failed:', err));
+    // Reset button when sound finishes naturally
+    _testAudio.addEventListener('ended', () => {
+      _testAudio = null;
+      alarmTestBtn.textContent = '▶ Test';
+    });
+  } else {
+    // Generated beep — can't stop mid-play but it's short so just play it
+    playRoundEndAlarm();
+  }
+});
+
+// Clear button removes the custom sound and reverts to default
+alarmClearBtn.addEventListener('click', () => {
+  clearCustomAlarm();
+  alarmSoundName.textContent = 'Default beep';
+  alarmClearBtn.hidden = true;
+});
+
 // ── Theme Toggle ──────────────────────────────────────────────────────────────
 
 themeToggle.addEventListener('click', () => {
@@ -383,8 +508,10 @@ function broadcastTimerStates() {
       id:               card.id,
       game:             card.game,
       label:            card.label,
+      image:            card.image,
       status:           card.status,
       remainingSeconds: card.remainingSeconds,
+      overtimeSeconds:  card.overtimeSeconds,
       totalSeconds:     card.totalSeconds,
     });
   });

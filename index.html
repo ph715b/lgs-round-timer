@@ -65,16 +65,31 @@
           />
         </div>
 
-        <!-- Optional table label -->
+        <!-- Timer name -->
         <div class="form-group">
-          <label class="form-label" for="table-label">Table Label <span class="form-hint">(optional)</span></label>
+          <label class="form-label" for="table-label">Timer Name <span class="form-hint">(optional)</span></label>
           <input
             id="table-label"
             type="text"
             class="form-input"
-            placeholder="e.g. Table 3 — Finals"
+            placeholder="e.g. Feature Match, Table 3"
             maxlength="60"
           />
+        </div>
+
+        <!-- Optional event logo/image -->
+        <div class="form-group">
+          <label class="form-label">Event Logo <span class="form-hint">(optional)</span></label>
+          <div class="image-upload-row">
+            <input id="timer-image-input" type="file" accept="image/*" style="display:none" />
+            <button id="timer-image-btn" class="btn btn--secondary btn--sm">⬆ Upload image</button>
+            <span id="timer-image-name" class="image-upload-name">No image</span>
+            <button id="timer-image-clear" class="btn btn--danger btn--sm" hidden>✕</button>
+          </div>
+          <!-- Preview of the selected image -->
+          <div id="timer-image-preview" class="image-preview" hidden>
+            <img id="timer-image-preview-img" src="" alt="Event logo preview" />
+          </div>
         </div>
 
         <button id="add-timer-btn" class="btn btn--primary btn--full">+ Add Timer</button>
@@ -90,6 +105,27 @@
         </div>
       </section>
 
+
+      <!-- ── Alarm Sound ──────────────────────────────────── -->
+      <section class="sidebar__section">
+        <h2 class="sidebar__heading">Alarm Sound</h2>
+
+        <!-- Shows current sound name or "Default beep" -->
+        <div id="alarm-sound-name" class="alarm-sound-name">Default beep</div>
+
+        <div class="alarm-sound-controls">
+          <!-- Hidden file input — triggered by the button below -->
+          <input
+            id="alarm-file-input"
+            type="file"
+            accept="audio/*"
+            style="display:none"
+          />
+          <button id="alarm-upload-btn" class="btn btn--secondary btn--sm">⬆ Upload sound</button>
+          <button id="alarm-test-btn"   class="btn btn--secondary btn--sm">▶ Test</button>
+          <button id="alarm-clear-btn"  class="btn btn--danger btn--sm"    hidden>✕ Clear</button>
+        </div>
+      </section>
 
       <!-- ── History ────────────────────────────────────────── -->
       <section class="sidebar__section">

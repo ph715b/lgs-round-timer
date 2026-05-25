@@ -27,21 +27,22 @@ export class TimerManager {
   /**
    * Creates a new TimerCard and appends it to the container.
    * @param {string} game         - Game name
-   * @param {string} label        - Table label (optional, auto-generated if empty)
+   * @param {string} label        - Timer name (optional, auto-generated if empty)
    * @param {number} totalSeconds - Round duration in seconds
    * @returns {TimerCard}
    */
-  addTimer(game, label, totalSeconds) {
+  addTimer(game, label, totalSeconds, image) {
     const id = `timer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-    // Auto-generate a table label if none was provided
-    const resolvedLabel = label?.trim() || `Table ${this._tableCounter++}`;
+    // Auto-generate a timer name if none was provided
+    const resolvedLabel = label?.trim() || `Timer ${this._tableCounter++}`;
 
     const card = new TimerCard({
       id,
       game,
       label: resolvedLabel,
       totalSeconds,
+      image: image || null,
       // When the card removes itself, tell the manager to clean up
       onRemove: (removedId) => this._removeTimer(removedId),
     });
