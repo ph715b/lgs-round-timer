@@ -1,0 +1,763 @@
+/* ============================================================
+   main.css
+   LGS Round Timer — full stylesheet.
+   Design: industrial/utilitarian with a game-store edge.
+   Fonts: Rajdhani (display) + Barlow (body)
+   ============================================================ */
+
+/* ── CSS Variables (Light Theme) ──────────────────────────── */
+:root {
+  /* Background layers */
+  --bg-app:      #f7f6f4;
+  --bg-surface:  #ffffff;
+  --bg-sidebar:  #1c1c22;
+  --bg-card:     #ffffff;
+
+  /* Borders & dividers */
+  --border:      #e2ddd8;
+  --border-card: #ece8e3;
+
+  /* Text */
+  --text-primary:   #1a1a1f;
+  --text-secondary: #6b6770;
+  --text-inverse:   #f5f2ee;
+  --text-hint:      #9b96a0;
+
+  /* Brand / accent */
+  --accent:       #e05c2a;   /* warm orange — card shop feel */
+  --accent-dim:   #f0a07a;
+  --accent-glow:  rgba(224, 92, 42, 0.15);
+
+  /* Status colors */
+  --color-running: #2a9d5c;
+  --color-paused:  #e0a020;
+  --color-expired: #d0282a;
+  --color-idle:    #7a768a;
+
+  /* Progress bar */
+  --progress-bg:   #ece8e3;
+  --progress-fill: #2a9d5c;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.06);
+  --shadow-card: 0 2px 8px rgba(0,0,0,0.08);
+
+  /* Radii */
+  --radius-sm:   6px;
+  --radius-md:  10px;
+  --radius-lg:  16px;
+
+  /* Transitions */
+  --transition: 180ms ease;
+}
+
+/* ── Dark Theme Overrides ─────────────────────────────────── */
+body.theme-dark {
+  --bg-app:      #111116;
+  --bg-surface:  #1c1c22;
+  --bg-sidebar:  #0d0d12;
+  --bg-card:     #24242c;
+
+  --border:      #2e2e38;
+  --border-card: #2e2e38;
+
+  --text-primary:   #f0ecf8;
+  --text-secondary: #9490a8;
+  --text-inverse:   #f0ecf8;
+  --text-hint:      #6b6680;
+
+  --progress-bg:  #2e2e38;
+  --shadow-card:  0 2px 12px rgba(0,0,0,0.35);
+  --shadow-md:    0 4px 16px rgba(0,0,0,0.40);
+}
+
+/* ── Reset ───────────────────────────────────────────────── */
+/* Ensure [hidden] always wins over any display: flex/grid rules */
+[hidden] { display: none !important; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+
+body {
+  font-family: 'Barlow', sans-serif;
+  font-weight: 400;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  min-height: 100vh;
+  transition: background var(--transition), color var(--transition);
+}
+
+/* Explicit background on the layout shell so the body colour always shows */
+.app-layout {
+  background: var(--bg-app);
+  transition: background var(--transition);
+}
+
+/* ── Typography ──────────────────────────────────────────── */
+h1, h2, h3 {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* ── App Header ──────────────────────────────────────────── */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  height: 60px;
+  background: var(--bg-sidebar);
+  border-bottom: 2px solid var(--accent);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-header__icon {
+  font-size: clamp(1.2rem, 2.5vw, 2rem);
+}
+
+.app-header__title {
+  font-size: 1.5rem;
+  color: var(--text-inverse);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-header__meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* ── Layout ──────────────────────────────────────────────── */
+.app-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: calc(100vh - 60px);
+}
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+.sidebar {
+  background: var(--bg-sidebar);
+  border-right: 1px solid rgba(255,255,255,0.06);
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  overflow-y: auto;
+}
+
+.sidebar__section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sidebar__heading {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent-dim);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding-bottom: 8px;
+}
+
+/* ── Form Elements ───────────────────────────────────────── */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.form-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-inverse);
+  opacity: 0.75;
+  letter-spacing: 0.03em;
+}
+
+.form-hint {
+  font-weight: 400;
+  opacity: 0.5;
+  font-size: 0.72rem;
+}
+
+.form-input,
+.form-select {
+  width: 100%;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--radius-sm);
+  color: var(--text-inverse);
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.92rem;
+  padding: 8px 10px;
+  outline: none;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.form-input:focus,
+.form-select:focus {
+  border-color: var(--accent);
+  background: rgba(224, 92, 42, 0.08);
+}
+
+.form-input::placeholder { color: rgba(255,255,255,0.25); }
+
+/* Override browser default select arrow color in dark context */
+.form-select option { background: #2a2a32; color: #f0ecf8; }
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: 'Barlow', sans-serif;
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background var(--transition), opacity var(--transition), transform 80ms;
+  white-space: nowrap;
+}
+
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn--primary  { background: var(--accent); color: #fff; }
+.btn--primary:hover { background: #c24d1e; }
+
+.btn--secondary { background: rgba(255,255,255,0.1); color: var(--text-inverse); }
+.btn--secondary:hover { background: rgba(255,255,255,0.18); }
+
+.btn--danger  { background: rgba(208, 40, 42, 0.3); color: #ff8080; }
+.btn--danger:hover { background: rgba(208, 40, 42, 0.5); }
+
+.btn--ghost   { background: transparent; color: var(--text-inverse); opacity: 0.7; }
+.btn--ghost:hover { opacity: 1; }
+
+.btn--full { width: 100%; }
+.btn--sm   { font-size: 0.78rem; padding: 5px 10px; }
+
+/* In the light-themed main area, buttons inside cards need different colors */
+.timer-card .btn--secondary {
+  background: var(--border);
+  color: var(--text-primary);
+}
+.timer-card .btn--secondary:hover { background: var(--border-card); filter: brightness(0.92); }
+.timer-card .btn--primary { background: var(--accent); color: #fff; }
+
+/* ── Global Controls ─────────────────────────────────────── */
+.global-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Timer Count Badge ───────────────────────────────────── */
+.timer-count-badge {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  background: rgba(255,255,255,0.1);
+  color: var(--text-inverse);
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+/* ── Timer Section ───────────────────────────────────────── */
+.timer-section {
+  padding: 28px;
+  overflow-y: auto;
+  /* Explicit background so nothing dark from sidebar bleeds through */
+  background: var(--bg-app);
+  transition: background var(--transition);
+}
+
+/* ── Empty State ─────────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 60vh;
+  opacity: 0.45;
+}
+
+.empty-state__icon { font-size: 3.5rem; }
+.empty-state__text { font-size: 1.05rem; font-weight: 500; color: var(--text-secondary); }
+
+/* ── Timer Grid ──────────────────────────────────────────── */
+.timer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  align-content: start;
+}
+
+/* ── Timer Card ──────────────────────────────────────────── */
+.timer-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 18px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--shadow-card);
+  border-top: 3px solid var(--color-idle);
+
+  /* Slide-in animation (class added by JS after append) */
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 240ms ease, transform 240ms ease,
+              border-top-color var(--transition), box-shadow var(--transition);
+}
+
+/* JS adds this class one frame after append to trigger the animation */
+.timer-card--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Status-driven border colors */
+.timer-card[data-status="running"] { border-top-color: var(--color-running); }
+.timer-card[data-status="paused"]  { border-top-color: var(--color-paused); }
+.timer-card[data-status="expired"] { border-top-color: var(--color-expired); }
+.timer-card[data-status="idle"]    { border-top-color: var(--color-idle); }
+
+/* Warning: card pulses red when < 5 min left */
+.timer-card--warning {
+  animation: warning-pulse 2s infinite;
+}
+
+@keyframes warning-pulse {
+  0%, 100% { box-shadow: var(--shadow-card); }
+  50%       { box-shadow: 0 0 0 3px rgba(208, 40, 42, 0.3), var(--shadow-card); }
+}
+
+/* Expired card gets a strong red tint */
+.timer-card--expired {
+  background: rgba(208, 40, 42, 0.05);
+}
+
+/* ── Card Header ─────────────────────────────────────────── */
+.timer-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.timer-card__game {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  flex: 1;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timer-card__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-app);
+  padding: 2px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.timer-card__remove {
+  background: none;
+  border: none;
+  color: var(--text-hint);
+  font-size: 1.2rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+  border-radius: 4px;
+  transition: color var(--transition), background var(--transition);
+}
+.timer-card__remove:hover { color: var(--color-expired); background: rgba(208,40,42,0.1); }
+
+/* ── Time Display ────────────────────────────────────────── */
+.timer-card__time {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 3.2rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: center;
+  color: var(--text-primary);
+  line-height: 1;
+  padding: 4px 0;
+  transition: color var(--transition);
+}
+
+/* Timer color changes by card status */
+.timer-card[data-status="running"] .timer-card__time { color: var(--color-running); }
+.timer-card[data-status="paused"]  .timer-card__time { color: var(--color-paused); }
+.timer-card[data-status="expired"] .timer-card__time { color: var(--color-expired); }
+.timer-card--warning .timer-card__time               { color: var(--color-expired); }
+
+/* ── Progress Bar ────────────────────────────────────────── */
+.timer-card__progress {
+  height: 5px;
+  background: var(--progress-bg);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.timer-card__progress-fill {
+  height: 100%;
+  background: var(--progress-fill);
+  border-radius: 10px;
+  transition: width 0.3s linear, background var(--transition);
+}
+
+.timer-card[data-status="running"] .timer-card__progress-fill { background: var(--color-running); }
+.timer-card[data-status="paused"]  .timer-card__progress-fill { background: var(--color-paused); }
+.timer-card--warning .timer-card__progress-fill               { background: var(--color-expired); }
+
+/* ── Status Badge ────────────────────────────────────────── */
+.timer-card__status {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.timer-card[data-status="running"] .timer-card__status { color: var(--color-running); }
+.timer-card[data-status="paused"]  .timer-card__status { color: var(--color-paused); }
+.timer-card[data-status="expired"] .timer-card__status { color: var(--color-expired); }
+.timer-card--warning .timer-card__status               { color: var(--color-expired); }
+
+/* ── Card Controls ───────────────────────────────────────── */
+.timer-card__controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* ── History Panel ───────────────────────────────────────── */
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.history-panel {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.history-panel--open { display: flex; }
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.history-empty {
+  color: var(--text-hint);
+  font-size: 0.82rem;
+  text-align: center;
+  padding: 12px 0;
+}
+
+.history-entry {
+  background: rgba(255,255,255,0.06);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.history-entry__game {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text-inverse);
+}
+
+.history-entry__label {
+  font-size: 0.75rem;
+  color: var(--accent-dim);
+}
+
+.history-entry__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--text-hint);
+}
+
+.history-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+/* ── Badges ──────────────────────────────────────────────── */
+.badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+
+.badge--expired { background: rgba(208,40,42,0.25); color: #ff8080; }
+.badge--stopped { background: rgba(224,160,32,0.2); color: #f0c060; }
+
+/* ── Scrollbars (optional polish) ────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 10px; }
+
+/* ── Responsive: narrow screens ──────────────────────────── */
+@media (max-width: 700px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .timer-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Form Label Row (label + action button side by side) ──── */
+.form-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+/* ── Manage Presets Modal ────────────────────────────────────
+   Full-screen semi-transparent backdrop with a centered box.
+   Fades in/out via the --visible modifier class.
+──────────────────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;                          /* covers the entire viewport */
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  opacity: 0;
+  transition: opacity 200ms ease;
+  padding: 16px;
+}
+
+.modal-backdrop--visible {
+  opacity: 1;
+}
+
+/* The modal box itself */
+.modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  transform: translateY(8px);
+  transition: transform 200ms ease;
+}
+
+.modal-backdrop--visible .modal {
+  transform: translateY(0);
+}
+
+/* Modal header row */
+.modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.modal__title {
+  font-size: 1.15rem;
+  color: var(--text-primary);
+}
+
+.modal__close {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color var(--transition), background var(--transition);
+}
+.modal__close:hover { color: var(--color-expired); background: rgba(208,40,42,0.1); }
+
+/* Scrollable preset list */
+.preset-manager-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 10px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.preset-manager-empty {
+  color: var(--text-hint);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 20px 0;
+}
+
+/* Individual preset row inside the modal */
+.preset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-app);
+  border: 1px solid var(--border-card);
+  transition: background var(--transition);
+}
+
+.preset-row:hover { background: var(--border); }
+
+.preset-row__info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.preset-row__name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.preset-row__dur {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.preset-row__action {
+  display: flex;
+  align-items: center;
+}
+
+/* The lock icon for built-in presets */
+.preset-row__lock {
+  font-size: 0.85rem;
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Delete button — override sidebar btn colors for the light modal context */
+.preset-row__delete {
+  background: rgba(208, 40, 42, 0.1) !important;
+  color: var(--color-expired) !important;
+  border: 1px solid rgba(208, 40, 42, 0.25);
+}
+.preset-row__delete:hover {
+  background: rgba(208, 40, 42, 0.22) !important;
+}
+
+/* Add new preset form at the bottom of the modal */
+.modal__add-form {
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal__sub-heading {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+  font-family: 'Rajdhani', sans-serif;
+}
+
+/* The three inline inputs + button for adding a new preset */
+.modal__add-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Light-themed inputs for the modal (white background, dark text) */
+.form-input--light {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.form-input--light::placeholder { color: var(--text-hint); }
+
+.form-input--light:focus {
+  border-color: var(--accent);
+  background: var(--bg-surface);
+  outline: 2px solid var(--accent-glow);
+  outline-offset: 0;
+}
+
+/* Error highlight for invalid inputs */
+.form-input--error {
+  border-color: var(--color-expired) !important;
+  animation: shake 220ms ease;
+}
+
+/* Short number input for the minutes field */
+.form-input--short {
+  width: 72px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25%       { transform: translateX(-4px); }
+  75%       { transform: translateX(4px); }
+}

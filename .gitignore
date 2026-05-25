@@ -1,0 +1,12 @@
+# Dependencies
+node_modules/
+
+# Vite build output
+dist/
+
+# Electron build output — these are large binaries, don't commit them
+release/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LGS Round Timer</title>
+
+  <!-- Google Fonts: Rajdhani (display) + Barlow (body) — game-store feel -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Barlow:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="stylesheet" href="/styles/main.css" />
+</head>
+<body>
+
+  <!-- ─────────────────────────────────────────────────────────
+       HEADER
+  ────────────────────────────────────────────────────────── -->
+  <header class="app-header">
+    <div class="app-header__brand">
+      <span class="app-header__icon">⏱</span>
+      <h1 class="app-header__title">LGS Round Timer</h1>
+    </div>
+    <div class="app-header__meta">
+      <span id="timer-count" class="timer-count-badge">0 timers</span>
+      <button id="theme-toggle" class="btn btn--ghost">☀ Light mode</button>
+    </div>
+  </header>
+
+  <!-- ─────────────────────────────────────────────────────────
+       MAIN LAYOUT
+  ────────────────────────────────────────────────────────── -->
+  <main class="app-layout">
+
+    <!-- ── Sidebar: Add Timer + Global Controls ─────────────── -->
+    <aside class="sidebar">
+
+      <section class="sidebar__section">
+        <h2 class="sidebar__heading">New Timer</h2>
+
+        <!-- Game preset selector -->
+        <div class="form-group">
+          <div class="form-label-row">
+            <label class="form-label" for="preset-select">Game</label>
+            <!-- Opens the manage presets modal -->
+            <button id="manage-presets-btn" class="btn btn--ghost btn--sm">✎ Manage</button>
+          </div>
+          <select id="preset-select" class="form-select"></select>
+        </div>
+
+        <!-- Duration input (in minutes) -->
+        <div class="form-group">
+          <label class="form-label" for="custom-duration">Duration (minutes)</label>
+          <input
+            id="custom-duration"
+            type="number"
+            class="form-input"
+            min="1"
+            max="240"
+            value="50"
+            placeholder="e.g. 50"
+          />
+        </div>
+
+        <!-- Optional table label -->
+        <div class="form-group">
+          <label class="form-label" for="table-label">Table Label <span class="form-hint">(optional)</span></label>
+          <input
+            id="table-label"
+            type="text"
+            class="form-input"
+            placeholder="e.g. Table 3 — Finals"
+            maxlength="60"
+          />
+        </div>
+
+        <button id="add-timer-btn" class="btn btn--primary btn--full">+ Add Timer</button>
+      </section>
+
+      <!-- ── Global Controls ───────────────────────────────── -->
+      <section class="sidebar__section">
+        <h2 class="sidebar__heading">All Timers</h2>
+        <div class="global-controls">
+          <button id="pause-all-btn"  class="btn btn--secondary">⏸ Pause All</button>
+          <button id="resume-all-btn" class="btn btn--secondary">▶ Resume All</button>
+          <button id="reset-all-btn"  class="btn btn--danger">↺ Reset All</button>
+        </div>
+      </section>
+
+
+      <!-- ── History ────────────────────────────────────────── -->
+      <section class="sidebar__section">
+        <div class="history-header">
+          <h2 class="sidebar__heading">Round History</h2>
+          <button id="history-toggle" class="btn btn--ghost btn--sm">Show History</button>
+        </div>
+
+        <!-- History panel (hidden by default, toggled via JS) -->
+        <div id="history-panel" class="history-panel">
+          <div id="history-list" class="history-list"></div>
+          <div class="history-actions">
+            <button id="export-csv-btn"    class="btn btn--secondary btn--sm">⬇ Export CSV</button>
+            <button id="clear-history-btn" class="btn btn--danger btn--sm">🗑 Clear</button>
+          </div>
+        </div>
+      </section>
+
+    </aside>
+
+    <!-- ── Main Content: Timer Grid ──────────────────────────── -->
+    <section class="timer-section">
+
+      <!-- Shown when no timers exist -->
+      <div id="empty-state" class="empty-state">
+        <div class="empty-state__icon">🎲</div>
+        <p class="empty-state__text">No timers yet — add one to get started!</p>
+      </div>
+
+      <!-- Timer cards render here -->
+      <div id="timer-grid" class="timer-grid"></div>
+
+    </section>
+
+  </main>
+
+  <!-- ─────────────────────────────────────────────────────────
+       MANAGE PRESETS MODAL
+       Hidden by default; toggled via JS when "Manage" is clicked.
+  ────────────────────────────────────────────────────────── -->
+  <div id="presets-modal-backdrop" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+
+      <div class="modal__header">
+        <h2 class="modal__title" id="modal-title">Manage Presets</h2>
+        <button id="close-modal-btn" class="modal__close" aria-label="Close">&times;</button>
+      </div>
+
+      <!-- Scrollable list of all presets -->
+      <div id="preset-manager-list" class="preset-manager-list"></div>
+
+      <!-- Form to add a brand-new custom preset inline -->
+      <div class="modal__add-form">
+        <h3 class="modal__sub-heading">Add New Preset</h3>
+        <div class="modal__add-row">
+          <input
+            id="new-preset-name"
+            type="text"
+            class="form-input form-input--light"
+            placeholder="Game name"
+            maxlength="50"
+          />
+          <input
+            id="new-preset-mins"
+            type="number"
+            class="form-input form-input--light form-input--short"
+            placeholder="Min"
+            min="1"
+            max="240"
+          />
+          <button id="save-new-preset-btn" class="btn btn--primary">Add</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Entry point — Vite handles the module bundling -->
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
