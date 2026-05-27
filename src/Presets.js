@@ -1,10 +1,9 @@
 // ============================================================
 // Presets.js
-// Manages game presets (name + duration) stored in localStorage.
-// Presets survive page refreshes and browser restarts.
+// Manages game presets (name + duration + optional image)
+// stored in localStorage.
 // ============================================================
 
-// The key we use to store presets in localStorage
 const STORAGE_KEY = 'lgs-timer-presets';
 
 /**
@@ -13,25 +12,26 @@ const STORAGE_KEY = 'lgs-timer-presets';
  * Durations are in seconds.
  */
 const DEFAULT_PRESETS = [
-  { id: 'default', name: 'Custom', duration: 3000 }, // 50 min — edit as needed
+  { id: 'default', name: 'Custom', duration: 3000, image: null },
 ];
 
 /**
  * Loads all presets from localStorage.
  * If nothing is stored yet, returns and saves the defaults.
- * @returns {Array} Array of preset objects { id, name, duration }
+ * @returns {Array} Array of preset objects { id, name, duration, image }
  */
 export function loadPresets() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      const presets = JSON.parse(stored);
+      // Backfill image: null for any old presets that don't have it
+      return presets.map(p => ({ image: null, ...p }));
     }
   } catch (err) {
     console.warn('[Presets] Failed to load from localStorage:', err);
   }
 
-  // First run — seed with defaults
   savePresets(DEFAULT_PRESETS);
   return DEFAULT_PRESETS;
 }
@@ -50,16 +50,18 @@ export function savePresets(presets) {
 
 /**
  * Adds a new preset and persists it.
- * @param {string} name     - Display name (e.g. "My Custom Game")
- * @param {number} duration - Duration in seconds
+ * @param {string}      name     - Display name
+ * @param {number}      duration - Duration in seconds
+ * @param {string|null} image    - Base64 data URL for the event logo (optional)
  * @returns {object} The new preset object
  */
-export function addPreset(name, duration) {
+export function addPreset(name, duration, image = null) {
   const presets = loadPresets();
   const newPreset = {
-    id: `preset-${Date.now()}`, // unique enough for our purposes
-    name: name.trim(),
+    id:    `preset-${Date.now()}`,
+    name:  name.trim(),
     duration,
+    image,
   };
   presets.push(newPreset);
   savePresets(presets);
@@ -67,16 +69,25 @@ export function addPreset(name, duration) {
 }
 
 /**
+ * Updates an existing preset's image.
+ * @param {string}      id    - Preset ID to update
+ * @param {string|null} image - New base64 image, or null to clear
+ */
+export function updatePresetImage(id, image) {
+  const presets = loadPresets();
+  const preset  = presets.find(p => p.id === id);
+  if (!preset) return;
+  preset.image = image;
+  savePresets(presets);
+}
+
+/**
  * Removes a preset by its id and persists the change.
- * Default presets (hard-coded ids) cannot be deleted.
  * @param {string} id
- * @returns {boolean} true if deleted, false if protected or not found
+ * @returns {boolean}
  */
 export function deletePreset(id) {
-  // Protect the built-in defaults from deletion
-  // No protected presets — users can delete anything
-
-  const presets = loadPresets();
+  const presets  = loadPresets();
   const filtered = presets.filter(p => p.id !== id);
   savePresets(filtered);
   return true;

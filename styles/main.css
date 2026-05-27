@@ -906,3 +906,18 @@ body.theme-dark .timer-card .btn--adj-plus  { color: var(--color-running); }
   max-height: 100px;
   object-fit: contain;
 }
+
+/* ── Preset row thumbnail ────────────────────────────────────── */
+.preset-row__thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.preset-row__info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}

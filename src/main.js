@@ -6,7 +6,7 @@
 
 import { TimerManager } from './TimerManager.js';
 import { saveCustomAlarm, getCustomAlarm, clearCustomAlarm, playRoundEndAlarm } from './Audio.js';
-import { loadPresets, addPreset, deletePreset, formatDuration } from './Presets.js';
+import { loadPresets, addPreset, deletePreset, updatePresetImage, formatDuration } from './Presets.js';
 import { loadHistory, clearHistory, exportHistoryAsCSV, formatTime } from './History.js';
 
 // ── DOM References ────────────────────────────────────────────────────────────
@@ -123,11 +123,37 @@ function syncDurationToPreset() {
   }
 
   if (selected?.dataset.dur) {
-    customDuration.value = Math.round(selected.dataset.dur / 60); // convert to minutes
+    customDuration.value = Math.round(selected.dataset.dur / 60);
   }
+
+  // Auto-fill the event logo from the selected preset
+  fillImageFromPreset();
 }
 
 presetSelect.addEventListener('change', syncDurationToPreset);
+
+/**
+ * Fills the image upload field from the currently selected preset's saved image.
+ * Call this any time the preset selection changes OR after adding a timer
+ * so the logo is always ready for the next one.
+ */
+function fillImageFromPreset() {
+  const presets = loadPresets();
+  const preset  = presets.find(p => p.id === presetSelect.value);
+  if (preset?.image) {
+    _pendingTimerImage         = preset.image;
+    timerImagePreviewImg.src   = preset.image;
+    timerImagePreview.hidden   = false;
+    timerImageName.textContent = 'From preset';
+    timerImageClear.hidden     = false;
+  } else {
+    _pendingTimerImage         = null;
+    timerImagePreviewImg.src   = '';
+    timerImagePreview.hidden   = true;
+    timerImageName.textContent = 'No image';
+    timerImageClear.hidden     = true;
+  }
+}
 
 // ── Add Timer ─────────────────────────────────────────────────────────────────
 
@@ -146,13 +172,9 @@ addTimerBtn.addEventListener('click', () => {
 
   manager.addTimer(game, label, Math.round(durationMinutes * 60), _pendingTimerImage);
 
-  // Clear inputs for the next timer
-  tableLabelInput.value      = '';
-  _pendingTimerImage         = null;
-  timerImageName.textContent = 'No image';
-  timerImageClear.hidden     = true;
-  timerImagePreview.hidden   = true;
-  timerImagePreviewImg.src   = '';
+  // Clear label, then refill image from preset so it's ready for the next timer
+  tableLabelInput.value = '';
+  fillImageFromPreset();
 
   updateUI();
 });
@@ -254,12 +276,15 @@ function renderPresetManagerList() {
     const row = document.createElement('div');
     row.className = 'preset-row';
 
-    // Left side: game name + duration
+    // Left side: thumbnail (if any) + game name + duration
     const info = document.createElement('div');
     info.className = 'preset-row__info';
     info.innerHTML = `
-      <span class="preset-row__name">${preset.name}</span>
-      <span class="preset-row__dur">${formatDuration(preset.duration)}</span>
+      ${preset.image ? `<img src="${preset.image}" class="preset-row__thumb" alt="" />` : ''}
+      <div>
+        <span class="preset-row__name">${preset.name}</span>
+        <span class="preset-row__dur">${formatDuration(preset.duration)}</span>
+      </div>
     `;
 
     // Right side: delete button for every preset
@@ -278,6 +303,47 @@ function renderPresetManagerList() {
       populatePresetDropdown();
     });
 
+    // Image upload button for this preset
+    const imageInput = document.createElement('input');
+    imageInput.type   = 'file';
+    imageInput.accept = 'image/*';
+    imageInput.style.display = 'none';
+
+    const imageBtn = document.createElement('button');
+    imageBtn.className   = 'btn btn--secondary btn--sm';
+    imageBtn.textContent = preset.image ? '🖼 Change' : '🖼 Add logo';
+    imageBtn.title       = 'Attach an event logo to this preset';
+
+    imageBtn.addEventListener('click', () => imageInput.click());
+
+    imageInput.addEventListener('change', () => {
+      const file = imageInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        updatePresetImage(preset.id, reader.result);
+        renderPresetManagerList();
+        populatePresetDropdown();
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Clear image button — only shown if preset has one
+    if (preset.image) {
+      const clearImg = document.createElement('button');
+      clearImg.className   = 'btn btn--danger btn--sm';
+      clearImg.textContent = '✕';
+      clearImg.title       = 'Remove logo from this preset';
+      clearImg.addEventListener('click', () => {
+        updatePresetImage(preset.id, null);
+        renderPresetManagerList();
+        populatePresetDropdown();
+      });
+      action.appendChild(clearImg);
+    }
+
+    action.appendChild(imageInput);
+    action.appendChild(imageBtn);
     action.appendChild(deleteBtn);
 
     row.append(info, action);
@@ -490,16 +556,20 @@ function updateUI() {
 // Initial UI state
 updateUI();
 
-// ── BroadcastChannel: live state publisher ────────────────────────────────────
-// Broadcasts every timer's current state every 500ms so any open pop-out
-// windows stay in sync. BroadcastChannel works across windows/tabs on the
-// same origin with zero config — no server or WebSockets needed.
+// ── BroadcastChannel: live state publisher via Web Worker ────────────────────
+// We use a Web Worker for the broadcast loop so it keeps running at full
+// speed even when the main window is minimised or loses focus.
+// Chromium throttles setInterval on inactive windows, which caused the
+// popout to appear paused — the worker thread is never throttled.
 
-const broadcast = new BroadcastChannel('lgs-timers');
+const broadcastWorker = new Worker(
+  new URL('./broadcastWorker.js', import.meta.url),
+  { type: 'module' }
+);
 
 /**
  * Collects a plain-object snapshot from every active TimerCard and
- * posts it to the channel. Each pop-out window filters by its own ID.
+ * sends it to the worker, which rebroadcasts it every 500ms.
  */
 function broadcastTimerStates() {
   const states = [];
@@ -515,14 +585,15 @@ function broadcastTimerStates() {
       totalSeconds:     card.totalSeconds,
     });
   });
-  broadcast.postMessage(states);
+  broadcastWorker.postMessage({ type: 'UPDATE_STATES', states });
 }
 
-// Broadcast every 500ms — smooth enough for a countdown display
-setInterval(broadcastTimerStates, 500);
+// Send fresh state to the worker every 250ms — the worker broadcasts
+// to popouts at its own 500ms pace from its unthrottled thread
+setInterval(broadcastTimerStates, 250);
 
 // Clean up when the main window closes
-window.addEventListener('beforeunload', () => broadcast.close());
+window.addEventListener('beforeunload', () => broadcastWorker.terminate());
 
 // ── Pop-out windows ───────────────────────────────────────────────────────────
 // Tracks open pop-out windows so clicking ⧉ twice focuses rather than

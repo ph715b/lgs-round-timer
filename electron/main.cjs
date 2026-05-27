@@ -4,15 +4,17 @@
 // app lifecycle, and controls how pop-out windows behave.
 // ============================================================
 
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, powerSaveBlocker } = require('electron');
 const path = require('path');
+
+// ── Prevent timer throttling ──────────────────────────────────
+// Electron/Chromium throttles setInterval when a window is minimised
+// or loses focus. powerSaveBlocker prevents the app from being
+// put into a low-power state, keeping timers running at full speed.
+let powerSaveId = null;
 
 // ── Window factory ────────────────────────────────────────────
 
-/**
- * Creates the main app window.
- * Loads dist/index.html — the Vite-built app — directly from disk.
- */
 function createMainWindow() {
   const win = new BrowserWindow({
     width:     1280,
@@ -21,18 +23,18 @@ function createMainWindow() {
     minHeight: 600,
     title:     'LGS Round Timer',
 
-    // Uncomment once you have an icon file at assets/icon.ico:
     // icon: path.join(__dirname, '../assets/icon.ico'),
 
     webPreferences: {
-      preload:          path.join(__dirname, 'preload.cjs'),
-      contextIsolation: true,
-      nodeIntegration:  false,
-      sandbox:          false, // needed for BroadcastChannel across windows
+      preload:              path.join(__dirname, 'preload.cjs'),
+      contextIsolation:     true,
+      nodeIntegration:      false,
+      sandbox:              false,
+      // Prevent Chromium from throttling timers when window is not focused
+      backgroundThrottling: false,
     },
   });
 
-  // Load the built app from disk (file:// protocol)
   win.loadFile(path.join(__dirname, '../dist/index.html'));
 
   // Press F12 to open DevTools in development
@@ -42,9 +44,16 @@ function createMainWindow() {
     });
   }
 
-  // ── Pop-out window handler ──────────────────────────────────
-  // Intercepts window.open() calls from the ⧉ button and opens
-  // them as real desktop windows instead of browser tabs.
+  // ── Stop throttling when window is hidden/minimised ──────────
+  // 'prevent-app-suspension' stops Chromium from throttling
+  // background timers so countdowns keep ticking accurately.
+  win.on('hide',    startPowerBlock);
+  win.on('minimize', startPowerBlock);
+  win.on('show',    stopPowerBlock);
+  win.on('restore', stopPowerBlock);
+  win.on('focus',   stopPowerBlock);
+
+  // ── Pop-out window handler ────────────────────────────────────
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (!url.includes('popout.html')) {
       shell.openExternal(url);
@@ -66,10 +75,11 @@ function createMainWindow() {
         // icon: path.join(__dirname, '../assets/icon.ico'),
 
         webPreferences: {
-          preload:          path.join(__dirname, 'preload.cjs'),
-          contextIsolation: true,
-          nodeIntegration:  false,
-          sandbox:          false,
+          preload:              path.join(__dirname, 'preload.cjs'),
+          contextIsolation:     true,
+          nodeIntegration:      false,
+          sandbox:              false,
+          backgroundThrottling: false,
         },
       },
     };
@@ -78,18 +88,34 @@ function createMainWindow() {
   return win;
 }
 
+/** Starts the power save blocker if not already running. */
+function startPowerBlock() {
+  if (powerSaveId === null) {
+    powerSaveId = powerSaveBlocker.start('prevent-app-suspension');
+  }
+}
+
+/** Stops the power save blocker when the window is active again. */
+function stopPowerBlock() {
+  if (powerSaveId !== null && powerSaveBlocker.isStarted(powerSaveId)) {
+    powerSaveBlocker.stop(powerSaveId);
+    powerSaveId = null;
+  }
+}
+
 // ── App lifecycle ─────────────────────────────────────────────
 
 app.whenReady().then(() => {
+  // Start blocker immediately so timers work from the first second
+  startPowerBlock();
   createMainWindow();
 
-  // macOS: re-create window when dock icon is clicked
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
   });
 });
 
-// Quit when all windows are closed (Windows/Linux standard behaviour)
 app.on('window-all-closed', () => {
+  stopPowerBlock();
   if (process.platform !== 'darwin') app.quit();
 });
